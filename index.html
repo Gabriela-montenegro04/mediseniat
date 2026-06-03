@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediSENIAT – Sistema de Gestión de Citas Médicas</title>
+  <meta name="description" content="Sistema web de gestión de citas médicas para funcionarios del SENIAT. Administra doctores, enfermeras y pacientes con roles diferenciados." />
+  <meta name="theme-color" content="#0b1f35" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230a8c7a'/><text x='16' y='23' font-size='18' text-anchor='middle' fill='white' font-family='Arial Black'>M</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ===== LOADING SCREEN ===== -->
+<div id="loading-screen" class="loading-screen">
+  <div class="loading-logo">
+    <img src="logo-mediseniat.svg" alt="MediSENIAT" style="width:320px;max-width:90vw;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.35);" />
+  </div>
+  <div class="loading-spinner"><span></span><span></span><span></span></div>
+  <p class="loading-text">Cargando sistema...</p>
+</div>
+
+<!-- ===================== PANTALLA DE LOGIN ===================== -->
+<div id="screen-login" class="screen active">
+  <div class="login-bg">
+    <div class="login-particles"></div>
+
+    <!-- UNA SOLA CARTA con dos "páginas" internas -->
+    <div class="login-card single-card">
+      <!-- Página 1: Selección de rol -->
+      <div id="page-roles" class="card-page card-page--active">
+        <div class="login-logo">
+          <img src="logo-mediseniat.svg" alt="SENIAT" class="seniat-logo-login" />
+          <h2 class="roles-title">MediSENIAT</h2>
+          <p class="login-sub">Sistema de Gestión de Citas Médicas</p>
+        </div>
+        <p class="roles-prompt">Seleccione su tipo de acceso para continuar</p>
+        <div class="roles-grid">
+          <button class="role-card" id="role-btn-admin" onclick="seleccionarRol('admin')">
+            <div class="role-icon"><i class="fas fa-user-shield"></i></div>
+            <div class="role-label">Administrador</div>
+            <div class="role-sublabel">Secretaria / Gestión</div>
+          </button>
+          <button class="role-card" id="role-btn-doctor" onclick="seleccionarRol('doctor')">
+            <div class="role-icon"><i class="fas fa-user-doctor"></i></div>
+            <div class="role-label">Doctor</div>
+            <div class="role-sublabel">Médico / Enfermera</div>
+          </button>
+        </div>
+        <p class="roles-footer"><i class="fas fa-shield-halved"></i> Acceso restringido al personal autorizado del SENIAT</p>
+      </div>
+
+      <!-- Página 2: Formulario de login/registro -->
+      <div id="page-form" class="card-page">
+        <!-- Cabecera con rol seleccionado -->
+        <div class="login-logo">
+          <div id="step-role-badge" class="step-role-badge"></div>
+          <p class="login-sub">Sistema de Gestión de Citas Médicas</p>
+          <h3 id="auth-form-title" class="auth-title-text" style="margin-top:0.75rem; font-size:1.25rem; font-weight:700; color:var(--text);">Iniciar Sesión</h3>
+        </div>
+
+        <!-- === FORMULARIO LOGIN === -->
+        <form id="form-login" novalidate class="auth-panel active" data-panel="login">
+          <div class="form-group">
+            <label for="login-email"><i class="fas fa-envelope"></i> Correo Electrónico</label>
+            <input type="email" id="login-email" placeholder="usuario@seniat.gob.ve" autocomplete="email" />
+            <span class="field-error" id="err-email"></span>
+          </div>
+          <div class="form-group">
+            <label for="login-pass"><i class="fas fa-lock"></i> Contraseña</label>
+            <div class="input-pass">
+              <input type="password" id="login-pass" placeholder="Su contraseña" autocomplete="current-password" />
+              <button type="button" class="toggle-pass" onclick="togglePass('login-pass', this)"><i class="fas fa-eye"></i></button>
+            </div>
+            <span class="field-error" id="err-pass"></span>
+          </div>
+          <div id="login-error" class="alert-error hidden">
+            <i class="fas fa-triangle-exclamation"></i> <span id="login-error-msg"></span>
+          </div>
+          <button type="submit" class="btn-primary btn-full" id="btn-login">
+            <i class="fas fa-right-to-bracket"></i> Iniciar Sesión
+          </button>
+          <div class="auth-switch-text">
+            ¿No tiene una cuenta? <a href="#" onclick="switchTab('register'); return false;">Regístrese aquí</a>
+          </div>
+          <button type="button" class="btn-back" onclick="volverRoles()">
+            <i class="fas fa-arrow-left"></i> Cambiar tipo de acceso
+          </button>
+        </form>
+
+        <!-- === FORMULARIO REGISTRO === -->
+        <form id="form-register" novalidate class="auth-panel" data-panel="register">
+          <div class="form-row">
+            <div class="form-group">
+              <label><i class="fas fa-user"></i> Nombres</label>
+              <input type="text" id="reg-nombres" placeholder="Ej: María" />
+            </div>
+            <div class="form-group">
+              <label>Apellidos</label>
+              <input type="text" id="reg-apellidos" placeholder="Ej: García" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label><i class="fas fa-envelope"></i> Correo Institucional</label>
+            <input type="email" id="reg-email" placeholder="usuario@seniat.gob.ve" />
+          </div>
+          <div id="reg-extra-doctor" class="hidden">
+            <div class="form-row">
+              <div class="form-group">
+                <label><i class="fas fa-stethoscope"></i> Especialidad</label>
+                <select id="reg-especialidad">
+                  <option value="Medicina General">Medicina General</option>
+                  <option value="Odontología">Odontología</option>
+                  <option value="Psicología">Psicología</option>
+                  <option value="Pediatría">Pediatría</option>
+                  <option value="Enfermería">Enfermería</option>
+                  <option value="Cardiología">Cardiología</option>
+                  <option value="Dermatología">Dermatología</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label><i class="fas fa-id-badge"></i> Cargo</label>
+                <select id="reg-cargo">
+                  <option value="Doctor">Doctor</option>
+                  <option value="Enfermera">Enfermera</option>
+                  <option value="Especialista">Especialista</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label><i class="fas fa-lock"></i> Contraseña</label>
+            <div class="input-pass">
+              <input type="password" id="reg-pass" placeholder="Mínimo 8 caracteres" oninput="checkRegPass()" />
+              <button type="button" class="toggle-pass" onclick="togglePass('reg-pass', this)"><i class="fas fa-eye"></i></button>
+            </div>
+            <div class="pass-hint">
+              <span id="rhint-len"     class="hint bad"><i class="fas fa-circle-xmark"></i> 8+ caracteres</span>
+              <span id="rhint-upper"   class="hint bad"><i class="fas fa-circle-xmark"></i> Mayúscula</span>
+              <span id="rhint-num"     class="hint bad"><i class="fas fa-circle-xmark"></i> Número</span>
+              <span id="rhint-special" class="hint bad"><i class="fas fa-circle-xmark"></i> Carácter especial</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Confirmar Contraseña</label>
+            <div class="input-pass">
+              <input type="password" id="reg-pass2" placeholder="Repita la contraseña" />
+              <button type="button" class="toggle-pass" onclick="togglePass('reg-pass2', this)"><i class="fas fa-eye"></i></button>
+            </div>
+          </div>
+          <div id="reg-error" class="alert-error hidden">
+            <i class="fas fa-triangle-exclamation"></i> <span id="reg-error-msg"></span>
+          </div>
+          <button type="submit" class="btn-primary btn-full">
+            <i class="fas fa-user-plus"></i> Crear Cuenta
+          </button>
+          <div class="auth-switch-text">
+            ¿Ya tiene una cuenta? <a href="#" onclick="switchTab('login'); return false;">Inicie Sesión</a>
+          </div>
+          <button type="button" class="btn-back" onclick="volverRoles()">
+            <i class="fas fa-arrow-left"></i> Cambiar tipo de acceso
+          </button>
+        </form>
+      </div>
+    </div><!-- /single-card -->
+
+  </div>
+</div>
+
+<!-- ===================== APP PRINCIPAL ===================== -->
+<div id="screen-app" class="screen hidden">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <div class="seniat-logo-sidebar-wrap">
+        <img src="logo-mediseniat.svg" alt="SENIAT" class="seniat-logo-sidebar" />
+      </div>
+      <button class="btn-close-sidebar" onclick="toggleSidebar()" aria-label="Cerrar menú"><i class="fas fa-xmark"></i></button>
+    </div>
+
+    <div class="user-card">
+      <div class="user-avatar" id="nav-avatar">A</div>
+      <div>
+        <div class="user-name" id="nav-name">Usuario</div>
+        <div class="user-role-badge" id="nav-role">Rol</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <!-- inyectado por JS según rol -->
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-version"><i class="fas fa-code-branch"></i> v2.1.0 &nbsp;·&nbsp; <i class="fas fa-circle status-ok"></i> En línea</div>
+      <button class="btn-logout" onclick="logout()">
+        <i class="fas fa-right-from-bracket"></i> Cerrar Sesión
+      </button>
+    </div>
+  </aside>
+
+  <!-- OVERLAY -->
+  <div id="overlay" class="overlay hidden" onclick="toggleSidebar()"></div>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="main-content">
+    <header class="topbar">
+      <button class="btn-hamburger" onclick="toggleSidebar()" aria-label="Menú"><i class="fas fa-bars"></i></button>
+      <div class="topbar-center">
+        <div class="topbar-title" id="topbar-title">Dashboard</div>
+        <div class="topbar-breadcrumb"><i class="fas fa-house"></i> <span id="breadcrumb-section">Inicio</span></div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-clock" id="topbar-clock"></div>
+        <button class="btn-icon" onclick="showNotifications()" aria-label="Notificaciones" title="Notificaciones">
+          <i class="fas fa-bell"></i><span class="notif-dot"></span>
+        </button>
+        <div class="topbar-user-chip">
+          <div class="topbar-avatar" id="topbar-avatar">C</div>
+          <span class="topbar-user" id="topbar-user">Usuario</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- VISTAS -->
+    <div id="views-container">
+
+      <!-- DASHBOARD -->
+      <section id="view-dashboard" class="view active">
+        <div class="page-header">
+          <div>
+            <h2 id="dash-title">Dashboard</h2>
+            <p id="dash-subtitle" class="page-subtitle">Resumen del sistema</p>
+          </div>
+          <div class="page-date" id="page-date"></div>
+        </div>
+        <div class="stats-grid" id="stats-grid"><!-- inyectado por JS --></div>
+        <div class="dashboard-grid">
+          <div class="card chart-card">
+            <div class="card-header"><h3><i class="fas fa-chart-bar"></i> Citas por Mes</h3></div>
+            <canvas id="chart-citas" height="200"></canvas>
+          </div>
+          <div class="card chart-card">
+            <div class="card-header"><h3><i class="fas fa-chart-pie"></i> Estado de Citas</h3></div>
+            <canvas id="chart-estado" height="200"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fas fa-calendar-check"></i> Próximas Citas</h3>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table" id="table-proximas">
+              <thead><tr><th>Paciente</th><th>Doctor</th><th>Fecha</th><th>Hora</th><th>Estado</th></tr></thead>
+              <tbody id="tbody-proximas"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- CITAS -->
+      <section id="view-citas" class="view">
+        <div class="page-header">
+          <div>
+            <h2>Gestión de Citas</h2>
+            <p class="page-subtitle">Administre las citas médicas del sistema</p>
+          </div>
+          <button class="btn-primary" onclick="openModal('modal-cita')"><i class="fas fa-plus"></i> Nueva Cita</button>
+        </div>
+        <div class="card">
+          <div class="card-header filters-bar">
+            <div class="search-box">
+              <i class="fas fa-search"></i>
+              <input type="text" id="search-citas" placeholder="Buscar por paciente, doctor, especialidad..." oninput="filterTable('citas')" />
+            </div>
+            <select id="filter-estado-cita" onchange="filterTable('citas')">
+              <option value="">Todos los estados</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Confirmada">Confirmada</option>
+              <option value="Completada">Completada</option>
+              <option value="Cancelada">Cancelada</option>
+            </select>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead><tr><th>Paciente</th><th>Doctor</th><th>Especialidad</th><th>Fecha</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <tbody id="tbody-citas"></tbody>
+            </table>
+          </div>
+          <div class="table-footer" id="footer-citas"></div>
+        </div>
+      </section>
+
+      <!-- PACIENTES -->
+      <section id="view-pacientes" class="view">
+        <div class="page-header">
+          <div>
+            <h2>Pacientes</h2>
+            <p class="page-subtitle">Funcionarios registrados en el sistema</p>
+          </div>
+          <button class="btn-primary" onclick="openModal('modal-paciente')"><i class="fas fa-plus"></i> Nuevo Paciente</button>
+        </div>
+        <div class="card">
+          <div class="card-header filters-bar">
+            <div class="search-box">
+              <i class="fas fa-search"></i>
+              <input type="text" id="search-pacientes" placeholder="Buscar por nombre, cédula, email..." oninput="filterTable('pacientes')" />
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead><tr><th>Nombre</th><th>Cédula</th><th>Email</th><th>Teléfono</th><th>Departamento</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <tbody id="tbody-pacientes"></tbody>
+            </table>
+          </div>
+          <div class="table-footer" id="footer-pacientes"></div>
+        </div>
+      </section>
+
+      <!-- CALENDARIO -->
+      <section id="view-calendario" class="view">
+        <div class="page-header">
+          <div>
+            <h2>Calendario de Citas</h2>
+            <p class="page-subtitle">Visualización mensual de todas las citas médicas</p>
+          </div>
+          <button class="btn-primary" onclick="openModal('modal-cita')"><i class="fas fa-plus"></i> Nueva Cita</button>
+        </div>
+        <div class="card" style="overflow:visible">
+          <div id="calendario-container" class="cal-wrapper">
+            <!-- Inyectado por JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- MÉDICOS -->
+      <section id="view-medicos" class="view">
+        <div class="page-header">
+          <h2>Médicos y Personal</h2>
+          <button class="btn-primary" onclick="openModal('modal-medico')"><i class="fas fa-plus"></i> Nuevo Médico</button>
+        </div>
+        <div class="card">
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead><tr><th>Nombre</th><th>Rol</th><th>Especialidad</th><th>Email</th><th>Teléfono</th><th>Estado</th></tr></thead>
+              <tbody id="tbody-medicos"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- USUARIOS / ADMIN -->
+      <section id="view-usuarios" class="view">
+        <div class="page-header">
+          <h2>Gestión de Usuarios</h2>
+          <button class="btn-primary" onclick="openModal('modal-usuario')"><i class="fas fa-plus"></i> Nuevo Usuario</button>
+        </div>
+        <div class="card">
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead><tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Estado</th></tr></thead>
+              <tbody id="tbody-usuarios"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- REPORTES -->
+      <section id="view-reportes" class="view">
+        <div class="page-header">
+          <h2><i class="fas fa-chart-line"></i> Reportes y Estadísticas</h2>
+        </div>
+        <div class="report-grid">
+          <div class="card report-card" onclick="generateReport('mensual')">
+            <div class="report-icon bg-blue"><i class="fas fa-calendar-days"></i></div>
+            <h3>Reporte Mensual</h3>
+            <p>Citas atendidas por mes con desglose por especialidad</p>
+            <span class="btn-report"><i class="fas fa-file-pdf"></i> Generar PDF</span>
+          </div>
+          <div class="card report-card" onclick="generateReport('doctor')">
+            <div class="report-icon bg-green"><i class="fas fa-user-doctor"></i></div>
+            <h3>Por Doctor</h3>
+            <p>Productividad y citas atendidas por médico</p>
+            <span class="btn-report"><i class="fas fa-file-pdf"></i> Generar PDF</span>
+          </div>
+          <div class="card report-card" onclick="generateReport('paciente')">
+            <div class="report-icon bg-purple"><i class="fas fa-users"></i></div>
+            <h3>Por Paciente</h3>
+            <p>Historial de citas y atenciones por funcionario</p>
+            <span class="btn-report"><i class="fas fa-file-pdf"></i> Generar PDF</span>
+          </div>
+          <div class="card report-card" onclick="generateReport('estado')">
+            <div class="report-icon bg-orange"><i class="fas fa-chart-pie"></i></div>
+            <h3>Estado de Citas</h3>
+            <p>Distribución de citas pendientes, completadas y canceladas</p>
+            <span class="btn-report"><i class="fas fa-file-pdf"></i> Generar PDF</span>
+          </div>
+        </div>
+        <div class="card" style="margin-top:1.5rem">
+          <div class="card-header"><h3><i class="fas fa-chart-bar"></i> Gráfico Anual de Atenciones</h3></div>
+          <canvas id="chart-anual" height="120"></canvas>
+        </div>
+      </section>
+
+      <!-- MI PERFIL (paciente) -->
+      <section id="view-perfil" class="view">
+        <div class="page-header"><h2>Mi Perfil</h2></div>
+        <div class="perfil-grid">
+          <div class="card perfil-card">
+            <div class="perfil-avatar" id="perfil-avatar-letra">P</div>
+            <h3 id="perfil-nombre">—</h3>
+            <span class="badge badge-blue" id="perfil-rol-badge">—</span>
+            <div class="perfil-info" id="perfil-info">
+              <div class="perfil-info-row"><i class="fas fa-envelope"></i><strong>Email:</strong><span id="perfil-email"></span></div>
+              <div class="perfil-info-row"><i class="fas fa-user"></i><strong>Usuario:</strong><span id="perfil-username"></span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3><i class="fas fa-calendar-check"></i> Mis Citas</h3></div>
+            <div class="table-wrapper">
+              <table class="data-table">
+                <thead><tr><th>Doctor</th><th>Fecha</th><th>Hora</th><th>Estado</th></tr></thead>
+                <tbody id="tbody-mis-citas"></tbody>
+              </table>
+            </div>
+            <div style="margin-top:1rem;text-align:center">
+              <button class="btn-primary" onclick="openModal('modal-cita')"><i class="fas fa-plus"></i> Solicitar Cita</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /views-container -->
+  </main>
+</div><!-- /screen-app -->
+
+<!-- ==================== MODALES ==================== -->
+
+<!-- Modal Nueva Cita -->
+<div id="modal-cita" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-calendar-plus"></i> Nueva Cita</h3>
+      <button class="modal-close" onclick="closeModal('modal-cita')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="form-cita" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Paciente</label>
+            <select id="cita-paciente" required>
+              <option value="">Seleccionar paciente...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Doctor / Personal</label>
+            <select id="cita-medico" required onchange="autoEspecialidad()">
+              <option value="">Seleccionar doctor...</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Especialidad</label>
+            <input type="text" id="cita-especialidad" placeholder="Se llena al seleccionar doctor" readonly />
+          </div>
+          <div class="form-group">
+            <label>Fecha</label>
+            <input type="date" id="cita-fecha" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Hora</label>
+            <input type="time" id="cita-hora" required />
+          </div>
+          <div class="form-group">
+            <label>Estado</label>
+            <select id="cita-estado">
+              <option value="Pendiente">Pendiente</option>
+              <option value="Confirmada">Confirmada</option>
+              <option value="Completada">Completada</option>
+              <option value="Cancelada">Cancelada</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Motivo de Consulta</label>
+          <textarea id="cita-motivo" rows="3" placeholder="Describa el motivo de la cita..."></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-cita')">Cancelar</button>
+      <button class="btn-primary" onclick="saveCita()"><i class="fas fa-save"></i> Guardar Cita</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nuevo Paciente -->
+<div id="modal-paciente" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-plus"></i> Nuevo Paciente</h3>
+      <button class="modal-close" onclick="closeModal('modal-paciente')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="form-paciente" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombres</label>
+            <input type="text" id="pac-nombres" placeholder="Nombres del funcionario" />
+          </div>
+          <div class="form-group">
+            <label>Apellidos</label>
+            <input type="text" id="pac-apellidos" placeholder="Apellidos" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Cédula</label>
+            <input type="text" id="pac-cedula" placeholder="V-12345678" />
+          </div>
+          <div class="form-group">
+            <label>Fecha de Nacimiento</label>
+            <input type="date" id="pac-nacimiento" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="pac-email" placeholder="correo@seniat.gob.ve" />
+          </div>
+          <div class="form-group">
+            <label>Teléfono</label>
+            <input type="tel" id="pac-telefono" placeholder="0412-0000000" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Departamento / Área</label>
+          <input type="text" id="pac-depto" placeholder="Ej: Fiscalización, Administración..." />
+        </div>
+        <div class="form-group">
+          <label>Alergias / Observaciones</label>
+          <textarea id="pac-observaciones" rows="2" placeholder="Alergias conocidas, condiciones preexistentes..."></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-paciente')">Cancelar</button>
+      <button class="btn-primary" onclick="savePaciente()"><i class="fas fa-save"></i> Registrar Paciente</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nuevo Médico -->
+<div id="modal-medico" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-doctor"></i> Nuevo Médico / Personal</h3>
+      <button class="modal-close" onclick="closeModal('modal-medico')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="form-medico" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombres</label>
+            <input type="text" id="med-nombres" placeholder="Nombres" />
+          </div>
+          <div class="form-group">
+            <label>Apellidos</label>
+            <input type="text" id="med-apellidos" placeholder="Apellidos" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Rol</label>
+            <select id="med-rol">
+              <option value="Doctor">Doctor</option>
+              <option value="Enfermera">Enfermera</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Especialidad</label>
+            <input type="text" id="med-especialidad" placeholder="Ej: Medicina General, Cardiología..." />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="med-email" placeholder="medico@seniat.gob.ve" />
+          </div>
+          <div class="form-group">
+            <label>Teléfono</label>
+            <input type="tel" id="med-telefono" placeholder="0412-0000000" />
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-medico')">Cancelar</button>
+      <button class="btn-primary" onclick="saveMedico()"><i class="fas fa-save"></i> Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nuevo Usuario -->
+<div id="modal-usuario" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-shield"></i> Nuevo Usuario del Sistema</h3>
+      <button class="modal-close" onclick="closeModal('modal-usuario')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="form-usuario" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombre de Usuario</label>
+            <input type="text" id="usr-username" placeholder="nombre.apellido" />
+          </div>
+          <div class="form-group">
+            <label>Rol del Sistema</label>
+            <select id="usr-rol">
+              <option value="admin">Administrador</option>
+              <option value="doctor">Doctor / Enfermera</option>
+              <option value="paciente">Paciente</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="usr-email" placeholder="usuario@seniat.gob.ve" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Contraseña</label>
+            <input type="password" id="usr-pass" placeholder="Contraseña segura" />
+          </div>
+          <div class="form-group">
+            <label>Confirmar Contraseña</label>
+            <input type="password" id="usr-pass2" placeholder="Repetir contraseña" />
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-usuario')">Cancelar</button>
+      <button class="btn-primary" onclick="saveUsuario()"><i class="fas fa-save"></i> Crear Usuario</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Notificaciones -->
+<div id="modal-notif" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3><i class="fas fa-bell"></i> Notificaciones</h3>
+      <button class="modal-close" onclick="closeModal('modal-notif')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" id="notif-list"></div>
+  </div>
+</div>
+
+<!-- Modal de Ver Detalles Cita -->
+<div id="modal-detalle-cita" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3><i class="fas fa-info-circle"></i> Detalle de Cita</h3>
+      <button class="modal-close" onclick="closeModal('modal-detalle-cita')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" id="detalle-cita-content"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-detalle-cita')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- Modal Consulta Médica / Recipe -->
+<div id="modal-consulta" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header" style="background:linear-gradient(135deg,#0b1f35,#1a6fa8);color:#fff;border-radius:16px 16px 0 0">
+      <h3 style="color:#fff"><i class="fas fa-stethoscope"></i> Consulta Médica</h3>
+      <button class="modal-close" onclick="closeModal('modal-consulta')" style="background:rgba(255,255,255,.15);color:#fff"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <!-- Info paciente/cita (inyectada por JS) -->
+      <div id="consulta-info" class="consulta-info-box"></div>
+
+      <!-- Diagnóstico -->
+      <div class="form-group" style="margin-top:1rem">
+        <label><i class="fas fa-notes-medical"></i> Diagnóstico</label>
+        <textarea id="consulta-diagnostico" rows="3" placeholder="Describa el diagnóstico del paciente..."></textarea>
+      </div>
+
+      <!-- Medicamentos -->
+      <div class="consulta-meds-header">
+        <label style="font-weight:700;font-size:.85rem;display:flex;align-items:center;gap:.4rem">
+          <i class="fas fa-pills" style="color:var(--primary)"></i> Medicamentos Recetados
+        </label>
+        <button class="btn-primary" style="padding:.4rem .85rem;font-size:.78rem" onclick="addMedicamento()">
+          <i class="fas fa-plus"></i> Agregar
+        </button>
+      </div>
+      <div class="table-wrapper" style="margin-top:.5rem">
+        <table class="data-table" id="table-meds">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Medicamento</th>
+              <th>Dosis</th>
+              <th>Frecuencia</th>
+              <th>Días</th>
+              <th>Instrucciones</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-meds"></tbody>
+        </table>
+      </div>
+      <div id="meds-empty" class="meds-empty" style="display:none">
+        <i class="fas fa-prescription-bottle-medical"></i>
+        <p>Sin medicamentos. Haga clic en "Agregar" para recetar.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-consulta')">Cancelar</button>
+      <button class="btn-primary" style="background:linear-gradient(135deg,#0d9488,#0f766e)" onclick="descargarRecipe()">
+        <i class="fas fa-file-pdf"></i> Descargar Receta PDF
+      </button>
+      <button class="btn-primary" onclick="guardarConsulta()">
+        <i class="fas fa-save"></i> Guardar Consulta
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Confirm personalizado (reemplaza window.confirm) -->
+<div id="modal-confirm" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3 id="confirm-title"><i class="fas fa-triangle-exclamation" style="color:var(--warning)"></i> Confirmar</h3>
+      <button class="modal-close" onclick="resolveConfirm(false)"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <p id="confirm-msg" style="font-size:.9rem;color:var(--text);line-height:1.6"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="resolveConfirm(false)">Cancelar</button>
+      <button class="btn-primary" id="confirm-ok-btn" onclick="resolveConfirm(true)">
+        <i class="fas fa-toggle-off"></i> Confirmar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="app.js" defer></script>
+</body>
+</html>
