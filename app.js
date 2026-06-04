@@ -516,8 +516,13 @@ function renderDashboard() {
     pd.innerHTML = `<i class="fas fa-calendar-days"></i>${now.toLocaleDateString('es-VE', opciones)}`;
   }
 
-  // Tabla próximas citas
-  const proximas = CITAS.filter(c => c.estado !== 'Cancelada' && c.estado !== 'Completada').slice(0,5);
+  // Tabla próximas citas — filtrar por médico si es doctor
+  let citasParaDash = CITAS.filter(c => c.estado !== 'Cancelada' && c.estado !== 'Completada');
+  if (currentUser.rol === 'doctor') {
+    const mDoc = MEDICOS.find(m => m.email === currentUser.email);
+    if (mDoc) citasParaDash = citasParaDash.filter(c => c.medicoId === mDoc.id);
+  }
+  const proximas = citasParaDash.slice(0,5);
   const tbody = document.getElementById('tbody-proximas');
   tbody.innerHTML = proximas.map(c => {
     const p = PACIENTES.find(p => p.id === c.pacienteId);
@@ -613,8 +618,18 @@ function renderTablaCitas(lista) {
   // Contador de registros
   const footer = document.getElementById('footer-citas');
   if (footer) {
-    const pendientes = CITAS.filter(c => c.estado === 'Pendiente').length;
-    footer.innerHTML = `<span>Mostrando <span class="table-footer-badge">${lista.length}</span> de ${CITAS.length} citas</span><span>${pendientes} pendiente(s)</span>`;
+    // Para doctor: total y pendientes de SUS citas; para admin: global
+    let totalBase = CITAS.length;
+    let pendientes = CITAS.filter(c => c.estado === 'Pendiente').length;
+    if (currentUser.rol === 'doctor') {
+      const mDoc = MEDICOS.find(m => m.email === currentUser.email);
+      if (mDoc) {
+        const misCitas = CITAS.filter(c => c.medicoId === mDoc.id);
+        totalBase  = misCitas.length;
+        pendientes = misCitas.filter(c => c.estado === 'Pendiente').length;
+      }
+    }
+    footer.innerHTML = `<span>Mostrando <span class="table-footer-badge">${lista.length}</span> de ${totalBase} citas</span><span>${pendientes} pendiente(s)</span>`;
   }
 }
 
@@ -662,11 +677,17 @@ function editarCita(id) {
 
 function saveCita() {
   const pacienteId = parseInt(document.getElementById('cita-paciente').value);
-  const medicoId   = parseInt(document.getElementById('cita-medico').value);
+  // Si es doctor, forzar su propio medicoId
+  let medicoId = parseInt(document.getElementById('cita-medico').value);
+  if (currentUser.rol === 'doctor') {
+    const mDoc = MEDICOS.find(m => m.email === currentUser.email);
+    if (mDoc) medicoId = mDoc.id;
+  }
   const especialidad = document.getElementById('cita-especialidad').value;
   const fecha = document.getElementById('cita-fecha').value;
   const hora  = document.getElementById('cita-hora').value;
-  const estado = document.getElementById('cita-estado').value;
+  // Doctor siempre crea en Pendiente
+  const estado = currentUser.rol === 'doctor' ? 'Pendiente' : (document.getElementById('cita-estado').value || 'Pendiente');
   const motivo = document.getElementById('cita-motivo').value;
 
   if (!pacienteId || !medicoId || !fecha || !hora) { showToast('Complete todos los campos requeridos', 'error'); return; }
@@ -681,6 +702,8 @@ function saveCita() {
     CITAS.push({ id: Date.now(), pacienteId, medicoId, especialidad, fecha, hora, estado, motivo });
     showToast('Cita registrada correctamente', 'success');
   }
+  // Re-habilitar el select al cerrar
+  document.getElementById('cita-medico').disabled = false;
   closeModal('modal-cita');
   renderCitas();
 }
@@ -916,7 +939,13 @@ function filterTable(tabla) {
   if (tabla === 'citas') {
     const q   = document.getElementById('search-citas').value.toLowerCase();
     const est = document.getElementById('filter-estado-cita').value;
-    const lista = CITAS.filter(c => {
+    // Base: filtrar por médico si es doctor
+    let base = [...CITAS];
+    if (currentUser.rol === 'doctor') {
+      const mDoc = MEDICOS.find(m => m.email === currentUser.email);
+      if (mDoc) base = base.filter(c => c.medicoId === mDoc.id);
+    }
+    const lista = base.filter(c => {
       const p = PACIENTES.find(p => p.id === c.pacienteId);
       const m = MEDICOS.find(m => m.id === c.medicoId);
       const texto = `${p?.nombres} ${p?.apellidos} ${m?.apellidos} ${c.especialidad}`.toLowerCase();
@@ -942,13 +971,34 @@ function openModal(id) {
     const selPac = document.getElementById('cita-paciente');
     const selMed = document.getElementById('cita-medico');
     selPac.innerHTML = '<option value="">-- Seleccione paciente --</option>' +
-      PACIENTES.map(p => `<option value="${p.id}">${p.nombres} ${p.apellidos} (${p.cedula})</option>`).join('');
-    selMed.innerHTML = '<option value="">-- Seleccione doctor --</option>' +
-      MEDICOS.map(m => `<option value="${m.id}">${m.nombres} ${m.apellidos} — ${m.especialidad}</option>`).join('');
-    // Fecha mínima = hoy
+      PACIENTES.filter(p => (p.estado || 'activo') === 'activo')
+        .map(p => `<option value="${p.id}">${p.nombres} ${p.apellidos} (${p.cedula})</option>`).join('');
+
+    // Si el usuario es doctor, pre-asignar SU medico y bloquear el select
+    if (currentUser.rol === 'doctor') {
+      const mDoc = MEDICOS.find(m => m.email === currentUser.email);
+      if (mDoc) {
+        selMed.innerHTML = `<option value="${mDoc.id}">${mDoc.nombres} ${mDoc.apellidos} — ${mDoc.especialidad}</option>`;
+        selMed.value = mDoc.id;
+        selMed.disabled = true;
+        const esp = document.getElementById('cita-especialidad');
+        if (esp) esp.value = mDoc.especialidad;
+      }
+    } else {
+      selMed.disabled = false;
+      selMed.innerHTML = '<option value="">-- Seleccione doctor --</option>' +
+        MEDICOS.filter(m => (m.estado || 'activo') === 'activo')
+          .map(m => `<option value="${m.id}">${m.nombres} ${m.apellidos} — ${m.especialidad}</option>`).join('');
+    }
+
+    // Fecha minima = hoy
     document.getElementById('cita-fecha').min = new Date().toISOString().split('T')[0];
     if (!document.getElementById('modal-cita').dataset.editId) {
-      document.getElementById('form-cita').reset();
+      document.getElementById('cita-paciente').value = '';
+      document.getElementById('cita-fecha').value    = '';
+      document.getElementById('cita-hora').value     = '';
+      document.getElementById('cita-estado').value   = 'Pendiente';
+      document.getElementById('cita-motivo').value   = '';
       document.querySelector('#modal-cita .modal-header h3').innerHTML = '<i class="fas fa-calendar-plus"></i> Nueva Cita';
     }
   }
@@ -1096,9 +1146,14 @@ function renderCalendario() {
   const hoy        = new Date();
   const esHoyMes   = hoy.getFullYear() === year && hoy.getMonth() === month;
 
-  // Agrupar citas por fecha del mes actual
+  // Agrupar citas por fecha del mes actual (filtrar por doctor si aplica)
+  let citasFiltradas = [...CITAS];
+  if (currentUser && currentUser.rol === 'doctor') {
+    const mDoc = MEDICOS.find(m => m.email === currentUser.email);
+    if (mDoc) citasFiltradas = citasFiltradas.filter(c => c.medicoId === mDoc.id);
+  }
   const citasPorDia = {};
-  CITAS.forEach(c => {
+  citasFiltradas.forEach(c => {
     const [cy, cm, cd] = c.fecha.split('-').map(Number);
     if (cy === year && cm - 1 === month) {
       if (!citasPorDia[cd]) citasPorDia[cd] = [];
@@ -1107,7 +1162,7 @@ function renderCalendario() {
   });
 
   // Stats del mes
-  const citasMes   = CITAS.filter(c => { const [cy,cm] = c.fecha.split('-'); return +cy===year && +cm-1===month; });
+  const citasMes   = citasFiltradas.filter(c => { const [cy,cm] = c.fecha.split('-'); return +cy===year && +cm-1===month; });
   const totalMes   = citasMes.length;
   const pendMes    = citasMes.filter(c => c.estado==='Pendiente').length;
   const confMes    = citasMes.filter(c => c.estado==='Confirmada').length;
@@ -1189,7 +1244,11 @@ function navCalendarioHoy() {
 
 function verCitasDelDia(dia, mes, anio) {
   const fechaStr = `${anio}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
-  const lista    = CITAS.filter(c => c.fecha === fechaStr);
+  let lista = CITAS.filter(c => c.fecha === fechaStr);
+  if (currentUser && currentUser.rol === 'doctor') {
+    const mDoc = MEDICOS.find(m => m.email === currentUser.email);
+    if (mDoc) lista = lista.filter(c => c.medicoId === mDoc.id);
+  }
   if (!lista.length) return;
 
   const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
