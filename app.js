@@ -1,5 +1,5 @@
 /* ===== API BASE ===== */
-const API_BASE = 'api/';
+const API_BASE = 'https://mediseniat.kesug.com/api/';
 
 /* ===== DATOS DE DEMO (fallback sin servidor PHP) ===== */
 const USUARIOS = [
@@ -516,13 +516,8 @@ function renderDashboard() {
     pd.innerHTML = `<i class="fas fa-calendar-days"></i>${now.toLocaleDateString('es-VE', opciones)}`;
   }
 
-  // Tabla próximas citas — filtrar por médico si es doctor
-  let citasParaDash = CITAS.filter(c => c.estado !== 'Cancelada' && c.estado !== 'Completada');
-  if (currentUser.rol === 'doctor') {
-    const mDoc = MEDICOS.find(m => m.email === currentUser.email);
-    if (mDoc) citasParaDash = citasParaDash.filter(c => c.medicoId === mDoc.id);
-  }
-  const proximas = citasParaDash.slice(0,5);
+  // Tabla próximas citas
+  const proximas = CITAS.filter(c => c.estado !== 'Cancelada' && c.estado !== 'Completada').slice(0,5);
   const tbody = document.getElementById('tbody-proximas');
   tbody.innerHTML = proximas.map(c => {
     const p = PACIENTES.find(p => p.id === c.pacienteId);
@@ -618,18 +613,8 @@ function renderTablaCitas(lista) {
   // Contador de registros
   const footer = document.getElementById('footer-citas');
   if (footer) {
-    // Para doctor: total y pendientes de SUS citas; para admin: global
-    let totalBase = CITAS.length;
-    let pendientes = CITAS.filter(c => c.estado === 'Pendiente').length;
-    if (currentUser.rol === 'doctor') {
-      const mDoc = MEDICOS.find(m => m.email === currentUser.email);
-      if (mDoc) {
-        const misCitas = CITAS.filter(c => c.medicoId === mDoc.id);
-        totalBase  = misCitas.length;
-        pendientes = misCitas.filter(c => c.estado === 'Pendiente').length;
-      }
-    }
-    footer.innerHTML = `<span>Mostrando <span class="table-footer-badge">${lista.length}</span> de ${totalBase} citas</span><span>${pendientes} pendiente(s)</span>`;
+    const pendientes = CITAS.filter(c => c.estado === 'Pendiente').length;
+    footer.innerHTML = `<span>Mostrando <span class="table-footer-badge">${lista.length}</span> de ${CITAS.length} citas</span><span>${pendientes} pendiente(s)</span>`;
   }
 }
 
@@ -677,17 +662,11 @@ function editarCita(id) {
 
 function saveCita() {
   const pacienteId = parseInt(document.getElementById('cita-paciente').value);
-  // Si es doctor, forzar su propio medicoId
-  let medicoId = parseInt(document.getElementById('cita-medico').value);
-  if (currentUser.rol === 'doctor') {
-    const mDoc = MEDICOS.find(m => m.email === currentUser.email);
-    if (mDoc) medicoId = mDoc.id;
-  }
+  const medicoId   = parseInt(document.getElementById('cita-medico').value);
   const especialidad = document.getElementById('cita-especialidad').value;
   const fecha = document.getElementById('cita-fecha').value;
   const hora  = document.getElementById('cita-hora').value;
-  // Doctor siempre crea en Pendiente
-  const estado = currentUser.rol === 'doctor' ? 'Pendiente' : (document.getElementById('cita-estado').value || 'Pendiente');
+  const estado = document.getElementById('cita-estado').value;
   const motivo = document.getElementById('cita-motivo').value;
 
   if (!pacienteId || !medicoId || !fecha || !hora) { showToast('Complete todos los campos requeridos', 'error'); return; }
@@ -699,11 +678,25 @@ function saveCita() {
     showToast('Cita actualizada correctamente', 'success');
     delete document.getElementById('modal-cita').dataset.editId;
   } else {
-    CITAS.push({ id: Date.now(), pacienteId, medicoId, especialidad, fecha, hora, estado, motivo });
-    showToast('Cita registrada correctamente', 'success');
+    fetch(`${API_BASE}citas.php`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ paciente_id: pacienteId, medico_id: medicoId, especialidad, fecha, hora, estado_cita: estado, motivo })
+    })
+    .then(r => r.json())
+    .then(res => {
+      if (res.success) {
+        CITAS.push({ id: res.id, pacienteId, medicoId, especialidad, fecha, hora, estado, motivo });
+        showToast('Cita registrada en la nube ✓', 'success');
+      } else {
+        showToast(res.message || 'Error al registrar cita','error');
+      }
+    })
+    .catch(() => {
+      CITAS.push({ id: Date.now(), pacienteId, medicoId, especialidad, fecha, hora, estado, motivo });
+      showToast('Cita registrada (modo local)', 'success');
+    });
   }
-  // Re-habilitar el select al cerrar
-  document.getElementById('cita-medico').disabled = false;
   closeModal('modal-cita');
   renderCitas();
 }
@@ -727,8 +720,17 @@ function buildPacienteRow(p, i) {
 }
 function renderPacientes() {
   const tbody = document.getElementById('tbody-pacientes');
-  tbody.innerHTML = PACIENTES.length
-    ? PACIENTES.map(buildPacienteRow).join('')
+  let listaPac = [...PACIENTES];
+  // Doctor solo ve sus propios pacientes (los que ha atendido o tiene citas)
+  if (currentUser && currentUser.rol === 'doctor') {
+    const medDoc = MEDICOS.find(m => m.email === currentUser.email);
+    if (medDoc) {
+      const idsAtendidos = [...new Set(CITAS.filter(c => c.medicoId === medDoc.id).map(c => c.pacienteId))];
+      listaPac = PACIENTES.filter(p => idsAtendidos.includes(p.id));
+    }
+  }
+  tbody.innerHTML = listaPac.length
+    ? listaPac.map(buildPacienteRow).join('')
     : `<tr><td colspan="6" class="empty-state"><i class="fas fa-users"></i>No hay pacientes registrados</td></tr>`;
   // Contador
   const footer = document.getElementById('footer-pacientes');
@@ -762,10 +764,23 @@ function savePaciente() {
 
   if (!nombres || !apellidos || !cedula || !email) { showToast('Complete los campos requeridos','error'); return; }
 
-  // Validar CI venezolana
+  // Validar que nombres y apellidos solo tengan letras
+  const soloLetras = /^[a-záéíóúüñA-ZÁÉÍÓÚÜÑ\s]+$/;
+  if (!soloLetras.test(nombres)) { showToast('El nombre solo puede contener letras','error'); return; }
+  if (!soloLetras.test(apellidos)) { showToast('El apellido solo puede contener letras','error'); return; }
+
+  // Validar CI venezolana — máximo 8 dígitos
   const ciNum = cedula.replace(/[VEJGvejg-]/g,'');
-  if (isNaN(ciNum) || parseInt(ciNum) < 100000 || parseInt(ciNum) > 100000000) {
-    showToast('La cédula debe estar entre 100.000 y 100.000.000','error'); return;
+  if (isNaN(ciNum) || ciNum.length > 8) {
+    showToast('La cédula no puede tener más de 8 dígitos','error'); return;
+  }
+  if (parseInt(ciNum) < 100000) {
+    showToast('La cédula debe tener al menos 6 dígitos','error'); return;
+  }
+  // Validar teléfono máx 11 dígitos
+  if (telefono) {
+    const telNum = telefono.replace(/[-\s]/g,'');
+    if (telNum.length > 11) { showToast('El teléfono no puede tener más de 11 dígitos','error'); return; }
   }
 
   // Validar duplicados
@@ -773,11 +788,32 @@ function savePaciente() {
   if (PACIENTES.find(p => p.email === email)) { showToast('Ya existe un paciente con ese email','error'); return; }
   if (PACIENTES.find(p => p.telefono === telefono && telefono)) { showToast('Ya existe un paciente con ese teléfono','error'); return; }
 
-  PACIENTES.push({ id: Date.now(), nombres, apellidos, cedula, email, telefono, depto, nacimiento, observaciones });
-  showToast('Paciente registrado correctamente','success');
-  closeModal('modal-paciente');
-  renderPacientes();
-  document.getElementById('form-paciente').reset();
+  // Guardar en base de datos en la nube
+  fetch(`${API_BASE}pacientes.php`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ nombres, apellidos, cedula, email, telefono, departamento: depto, nacimiento, observaciones })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.success) {
+      PACIENTES.push({ id: res.id, nombres, apellidos, cedula, email, telefono, depto, nacimiento, observaciones, estado:'activo' });
+      showToast('Paciente registrado correctamente','success');
+      closeModal('modal-paciente');
+      renderPacientes();
+      document.getElementById('form-paciente').reset();
+    } else {
+      showToast(res.message || 'Error al registrar paciente','error');
+    }
+  })
+  .catch(() => {
+    // Si falla la nube, guardar local igual
+    PACIENTES.push({ id: Date.now(), nombres, apellidos, cedula, email, telefono, depto, nacimiento, observaciones, estado:'activo' });
+    showToast('Paciente registrado (modo local)','success');
+    closeModal('modal-paciente');
+    renderPacientes();
+    document.getElementById('form-paciente').reset();
+  });
 }
 
 /* ===== MÉDICOS ===== */
@@ -809,11 +845,37 @@ function saveMedico() {
   const email = document.getElementById('med-email').value.trim();
   const telefono = document.getElementById('med-telefono').value.trim();
   if (!nombres || !apellidos || !especialidad || !email) { showToast('Complete los campos requeridos','error'); return; }
-  MEDICOS.push({ id: Date.now(), nombres, apellidos, rol, especialidad, email, telefono });
-  showToast('Médico registrado correctamente','success');
-  closeModal('modal-medico');
-  renderMedicos();
-  document.getElementById('form-medico').reset();
+  const soloLetrasM = /^[a-záéíóúüñA-ZÁÉÍÓÚÜÑ\s]+$/;
+  if (!soloLetrasM.test(nombres)) { showToast('El nombre solo puede contener letras','error'); return; }
+  if (!soloLetrasM.test(apellidos)) { showToast('El apellido solo puede contener letras','error'); return; }
+  if (telefono) {
+    const telM = telefono.replace(/[-\s]/g,'');
+    if (telM.length > 11) { showToast('El teléfono no puede tener más de 11 dígitos','error'); return; }
+  }
+  fetch(`${API_BASE}medicos.php`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ nombres, apellidos, rol, especialidad, email, telefono })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.success) {
+      MEDICOS.push({ id: res.id, nombres, apellidos, rol, especialidad, email, telefono, estado:'activo' });
+      showToast('Médico registrado correctamente','success');
+      closeModal('modal-medico');
+      renderMedicos();
+      document.getElementById('form-medico').reset();
+    } else {
+      showToast(res.message || 'Error al registrar médico','error');
+    }
+  })
+  .catch(() => {
+    MEDICOS.push({ id: Date.now(), nombres, apellidos, rol, especialidad, email, telefono, estado:'activo' });
+    showToast('Médico registrado (modo local)','success');
+    closeModal('modal-medico');
+    renderMedicos();
+    document.getElementById('form-medico').reset();
+  });
 }
 
 /* ===== USUARIOS ===== */
@@ -824,10 +886,17 @@ function renderUsuarios() {
   const usuariosFiltrados = USUARIOS.filter(u => u.rol !== 'paciente');
   tbody.innerHTML = usuariosFiltrados.map((u,i) => {
     const activo = (u.estado || 'activo') === 'activo';
+    const rolLabel = {admin:'Administrador', doctor:'Doctor/Enfermera'}[u.rol] || u.rol;
+    const permisos = u.rol === 'admin'
+      ? 'Acceso total al sistema'
+      : u.rol === 'doctor'
+      ? 'Citas, Pacientes propios, Reportes'
+      : 'Solo sus citas';
     return `<tr class="${activo ? '' : 'row-inactive'}">
     <td><strong>${u.nombre}</strong></td>
     <td>${u.email}</td>
-    <td><span class="badge badge-${u.rol}">${{admin:'Administrador',doctor:'Doctor/Enfermera'}[u.rol]||u.rol}</span></td>
+    <td><span class="badge badge-${u.rol}">${rolLabel}</span></td>
+    <td style="font-size:11px;color:#666">${permisos}</td>
     <td>
       <div class="action-btns">
         ${buildToggleHTML('usuarios', u.id, u.estado || 'activo')}
@@ -852,11 +921,50 @@ function saveUsuario() {
   if (USUARIOS.find(u => u.email === email)) { showToast('Ya existe un usuario con ese email','error'); return; }
   if (USUARIOS.find(u => u.username === username)) { showToast('Ese nombre de usuario ya existe','error'); return; }
 
-  USUARIOS.push({ id: Date.now(), username, nombre: username, email, pass, rol });
-  showToast('Usuario creado correctamente','success');
-  closeModal('modal-usuario');
-  renderUsuarios();
-  document.getElementById('form-usuario').reset();
+  // Guardar usuario en la nube
+  fetch(`${API_BASE}usuarios.php`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ username, nombre: username, email, password: pass, rol })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.success) {
+      USUARIOS.push({ id: res.id, username, nombre: username, email, pass, rol, estado:'activo' });
+      // Si es doctor, registrar también en médicos automáticamente
+      if (rol === 'doctor') {
+        const partes = username.split('.');
+        const nomDoc = partes[0] ? partes[0].charAt(0).toUpperCase()+partes[0].slice(1) : username;
+        const apDoc  = partes[1] ? partes[1].charAt(0).toUpperCase()+partes[1].slice(1) : '';
+        fetch(`${API_BASE}medicos.php`, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ nombres: nomDoc, apellidos: apDoc, rol:'Doctor', especialidad:'Medicina General', email, telefono:'' })
+        })
+        .then(r2 => r2.json())
+        .then(res2 => {
+          if (res2.success) MEDICOS.push({ id: res2.id, nombres: nomDoc, apellidos: apDoc, rol:'Doctor', especialidad:'Medicina General', email, telefono:'', estado:'activo' });
+          renderMedicos();
+        });
+        showToast('Usuario y médico registrados en la nube ✓','success');
+      } else {
+        showToast('Usuario registrado en la nube ✓','success');
+      }
+      closeModal('modal-usuario');
+      renderUsuarios();
+      document.getElementById('form-usuario').reset();
+    } else {
+      showToast(res.message || 'Error al registrar usuario','error');
+    }
+  })
+  .catch(() => {
+    const newId = Date.now();
+    USUARIOS.push({ id: newId, username, nombre: username, email, pass, rol, estado:'activo' });
+    showToast('Usuario registrado (modo local)','success');
+    closeModal('modal-usuario');
+    renderUsuarios();
+    document.getElementById('form-usuario').reset();
+  });
 }
 
 /* ===== REPORTES ===== */
@@ -939,13 +1047,7 @@ function filterTable(tabla) {
   if (tabla === 'citas') {
     const q   = document.getElementById('search-citas').value.toLowerCase();
     const est = document.getElementById('filter-estado-cita').value;
-    // Base: filtrar por médico si es doctor
-    let base = [...CITAS];
-    if (currentUser.rol === 'doctor') {
-      const mDoc = MEDICOS.find(m => m.email === currentUser.email);
-      if (mDoc) base = base.filter(c => c.medicoId === mDoc.id);
-    }
-    const lista = base.filter(c => {
+    const lista = CITAS.filter(c => {
       const p = PACIENTES.find(p => p.id === c.pacienteId);
       const m = MEDICOS.find(m => m.id === c.medicoId);
       const texto = `${p?.nombres} ${p?.apellidos} ${m?.apellidos} ${c.especialidad}`.toLowerCase();
@@ -971,34 +1073,13 @@ function openModal(id) {
     const selPac = document.getElementById('cita-paciente');
     const selMed = document.getElementById('cita-medico');
     selPac.innerHTML = '<option value="">-- Seleccione paciente --</option>' +
-      PACIENTES.filter(p => (p.estado || 'activo') === 'activo')
-        .map(p => `<option value="${p.id}">${p.nombres} ${p.apellidos} (${p.cedula})</option>`).join('');
-
-    // Si el usuario es doctor, pre-asignar SU medico y bloquear el select
-    if (currentUser.rol === 'doctor') {
-      const mDoc = MEDICOS.find(m => m.email === currentUser.email);
-      if (mDoc) {
-        selMed.innerHTML = `<option value="${mDoc.id}">${mDoc.nombres} ${mDoc.apellidos} — ${mDoc.especialidad}</option>`;
-        selMed.value = mDoc.id;
-        selMed.disabled = true;
-        const esp = document.getElementById('cita-especialidad');
-        if (esp) esp.value = mDoc.especialidad;
-      }
-    } else {
-      selMed.disabled = false;
-      selMed.innerHTML = '<option value="">-- Seleccione doctor --</option>' +
-        MEDICOS.filter(m => (m.estado || 'activo') === 'activo')
-          .map(m => `<option value="${m.id}">${m.nombres} ${m.apellidos} — ${m.especialidad}</option>`).join('');
-    }
-
-    // Fecha minima = hoy
+      PACIENTES.map(p => `<option value="${p.id}">${p.nombres} ${p.apellidos} (${p.cedula})</option>`).join('');
+    selMed.innerHTML = '<option value="">-- Seleccione doctor --</option>' +
+      MEDICOS.filter(m => m.rol !== 'Enfermera' && (m.estado||'activo')==='activo').map(m => `<option value="${m.id}">Dr/Dra. ${m.apellidos} — ${m.especialidad}</option>`).join('');
+    // Fecha mínima = hoy
     document.getElementById('cita-fecha').min = new Date().toISOString().split('T')[0];
     if (!document.getElementById('modal-cita').dataset.editId) {
-      document.getElementById('cita-paciente').value = '';
-      document.getElementById('cita-fecha').value    = '';
-      document.getElementById('cita-hora').value     = '';
-      document.getElementById('cita-estado').value   = 'Pendiente';
-      document.getElementById('cita-motivo').value   = '';
+      document.getElementById('form-cita').reset();
       document.querySelector('#modal-cita .modal-header h3').innerHTML = '<i class="fas fa-calendar-plus"></i> Nueva Cita';
     }
   }
@@ -1146,14 +1227,9 @@ function renderCalendario() {
   const hoy        = new Date();
   const esHoyMes   = hoy.getFullYear() === year && hoy.getMonth() === month;
 
-  // Agrupar citas por fecha del mes actual (filtrar por doctor si aplica)
-  let citasFiltradas = [...CITAS];
-  if (currentUser && currentUser.rol === 'doctor') {
-    const mDoc = MEDICOS.find(m => m.email === currentUser.email);
-    if (mDoc) citasFiltradas = citasFiltradas.filter(c => c.medicoId === mDoc.id);
-  }
+  // Agrupar citas por fecha del mes actual
   const citasPorDia = {};
-  citasFiltradas.forEach(c => {
+  CITAS.forEach(c => {
     const [cy, cm, cd] = c.fecha.split('-').map(Number);
     if (cy === year && cm - 1 === month) {
       if (!citasPorDia[cd]) citasPorDia[cd] = [];
@@ -1162,7 +1238,7 @@ function renderCalendario() {
   });
 
   // Stats del mes
-  const citasMes   = citasFiltradas.filter(c => { const [cy,cm] = c.fecha.split('-'); return +cy===year && +cm-1===month; });
+  const citasMes   = CITAS.filter(c => { const [cy,cm] = c.fecha.split('-'); return +cy===year && +cm-1===month; });
   const totalMes   = citasMes.length;
   const pendMes    = citasMes.filter(c => c.estado==='Pendiente').length;
   const confMes    = citasMes.filter(c => c.estado==='Confirmada').length;
@@ -1244,11 +1320,7 @@ function navCalendarioHoy() {
 
 function verCitasDelDia(dia, mes, anio) {
   const fechaStr = `${anio}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
-  let lista = CITAS.filter(c => c.fecha === fechaStr);
-  if (currentUser && currentUser.rol === 'doctor') {
-    const mDoc = MEDICOS.find(m => m.email === currentUser.email);
-    if (mDoc) lista = lista.filter(c => c.medicoId === mDoc.id);
-  }
+  const lista    = CITAS.filter(c => c.fecha === fechaStr);
   if (!lista.length) return;
 
   const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
