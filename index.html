@@ -313,7 +313,7 @@
           </div>
           <div class="table-wrapper">
             <table class="data-table">
-              <thead><tr><th>Nombre</th><th>Cédula</th><th>Email</th><th>Teléfono</th><th>Departamento</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <thead><tr><th>Nombre</th><th>Cédula</th><th>Email</th><th>Teléfono</th><th>Departamento</th><th>Estado</th><th></th></tr></thead>
               <tbody id="tbody-pacientes"></tbody>
             </table>
           </div>
@@ -362,7 +362,7 @@
         <div class="card">
           <div class="table-wrapper">
             <table class="data-table">
-              <thead><tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Estado</th></tr></thead>
+              <thead><tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Permisos</th><th>Estado</th></tr></thead>
               <tbody id="tbody-usuarios"></tbody>
             </table>
           </div>
@@ -513,17 +513,17 @@
         <div class="form-row">
           <div class="form-group">
             <label>Nombres</label>
-            <input type="text" id="pac-nombres" placeholder="Nombres del funcionario" />
+            <input type="text" id="pac-nombres" placeholder="Nombres del funcionario" pattern="[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ\s]+" title="Solo letras" />
           </div>
           <div class="form-group">
             <label>Apellidos</label>
-            <input type="text" id="pac-apellidos" placeholder="Apellidos" />
+            <input type="text" id="pac-apellidos" placeholder="Apellidos" pattern="[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ\s]+" title="Solo letras" />
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label>Cédula</label>
-            <input type="text" id="pac-cedula" placeholder="V-12345678" />
+            <input type="text" id="pac-cedula" placeholder="V-12345678" maxlength="10" />
           </div>
           <div class="form-group">
             <label>Fecha de Nacimiento</label>
@@ -537,12 +537,24 @@
           </div>
           <div class="form-group">
             <label>Teléfono</label>
-            <input type="tel" id="pac-telefono" placeholder="0412-0000000" />
+            <input type="tel" id="pac-telefono" placeholder="0412-0000000" maxlength="12" />
           </div>
         </div>
         <div class="form-group">
           <label>Departamento / Área</label>
-          <input type="text" id="pac-depto" placeholder="Ej: Fiscalización, Administración..." />
+          <select id="pac-depto">
+              <option value="">-- Seleccionar departamento --</option>
+              <option>Administración</option>
+              <option>Fiscalización</option>
+              <option>Cobranzas</option>
+              <option>Informática</option>
+              <option>Recursos Humanos</option>
+              <option>Planificación</option>
+              <option>Legal</option>
+              <option>Gerencia</option>
+              <option>Auditoría</option>
+              <option>Atención al Contribuyente</option>
+            </select>
         </div>
         <div class="form-group">
           <label>Alergias / Observaciones</label>
@@ -569,11 +581,11 @@
         <div class="form-row">
           <div class="form-group">
             <label>Nombres</label>
-            <input type="text" id="med-nombres" placeholder="Nombres" />
+            <input type="text" id="med-nombres" placeholder="Nombres" pattern="[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ\s]+" title="Solo letras" />
           </div>
           <div class="form-group">
             <label>Apellidos</label>
-            <input type="text" id="med-apellidos" placeholder="Apellidos" />
+            <input type="text" id="med-apellidos" placeholder="Apellidos" pattern="[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ\s]+" title="Solo letras" />
           </div>
         </div>
         <div class="form-row">
@@ -596,7 +608,7 @@
           </div>
           <div class="form-group">
             <label>Teléfono</label>
-            <input type="tel" id="med-telefono" placeholder="0412-0000000" />
+            <input type="tel" id="med-telefono" placeholder="0412-0000000" maxlength="12" />
           </div>
         </div>
       </form>
@@ -639,10 +651,12 @@
           <div class="form-group">
             <label>Contraseña</label>
             <input type="password" id="usr-pass" placeholder="Contraseña segura" />
+            <button type="button" class="toggle-pass" onclick="togglePass('usr-pass', this)"><i class="fas fa-eye"></i></button>
           </div>
           <div class="form-group">
             <label>Confirmar Contraseña</label>
             <input type="password" id="usr-pass2" placeholder="Repetir contraseña" />
+            <button type="button" class="toggle-pass" onclick="togglePass('usr-pass2', this)"><i class="fas fa-eye"></i></button>
           </div>
         </div>
       </form>
