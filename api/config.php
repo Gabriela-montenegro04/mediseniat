@@ -16,10 +16,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Configuración de la base de datos
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'mediseniat');
-define('DB_USER', 'root');
-define('DB_PASS', '');       // XAMPP por defecto no tiene contraseña
+define('DB_HOST', 'sql111.infinityfree.com');
+define('DB_NAME', 'if0_42107842_mediseniat');
+define('DB_USER', 'if0_42107842');
+define('DB_PASS', 'mediseniat');
 define('DB_CHARSET', 'utf8mb4');
 
 /**
